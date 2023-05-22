@@ -1,0 +1,95 @@
+-- UART receiver entity
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+
+entity UART_Receiver is
+    generic (
+        BAUD_RATE : integer := 9600;  -- Baud rate in bits per second
+        CLK_FREQ : integer := 153600   -- Clock frequency 100MHz
+    );
+    port (
+                                  -- clk : in std_logic;
+        rx : in std_logic;        -- Received UART signal
+        data_out : out std_logic_vector(9 downto 0)  -- Output signal on pin 
+    );
+    
+    
+end entity UART_Receiver;
+
+architecture Behavioral of UART_Receiver is
+    constant BIT_PERIOD : integer := CLK_FREQ / BAUD_RATE; -- Anvedes pt. ikke. 
+    constant BIT_TIME : Integer := 1/BAUD_RATE;            -- Anvendes pt. ikke. 
+    constant DELAY : time := 104us;                        -- Bit tid. - Anvedes pt. ikke
+    signal shift_reg : std_logic_vector(9 downto 0);
+    signal start_bit : std_logic;
+    signal bit_count : integer range 0 to 9;
+    signal receive_complete : std_logic := '0';  
+
+
+    signal index : integer range 0 to 9 := 0;
+
+    
+    --Til generering af klokken
+    constant ClockPeriode:    time    := 1000ms / CLK_FREQ; -- Periode
+    signal clk: std_logic :='1';                            -- Klokken 
+
+    
+begin
+
+ -- Aktivering af kontinuerlig Clockfrekvens  - Start med at være høj
+clk <= not clk after ClockPeriode/2;     -- CLK = ikke CLK som er nul med skiftene periode af ClockPeriode/2
+
+    -- Process to receive data
+    receive_process: process (clk)
+    begin
+
+        if rising_edge(clk) then
+            if start_bit = '1' then  
+            receive_complete <= '0';             -- Start bit detected
+                if bit_count = 0 then
+                    shift_reg <= (others => '0'); -- Fylder register med nuller
+                    bit_count <= 1;        
+                elsif bit_count < 9 then  
+                    shift_reg(bit_count) <= rx;
+                    bit_count <= bit_count + 1;
+                    
+                    
+                elsif bit_count = 9  then           -- All bits received
+                    shift_reg(bit_count) <= rx;
+                    bit_count <= 0;                -- Reset af bit_count
+                    start_bit <= '0';              -- Reset af start bit detectd
+                    shift_reg <= (others => '0');  -- Resetter register med nuller   // Ekstra?
+                    data_out <= shift_reg;         -- Overfører buffer til data_out
+                    receive_complete <= '1';       -- Overførslen er modtaget
+                end if;
+                
+--                if start_bit ='1' then             -- Reset af received complete (Klar til ny data)
+--                receive_complete <= '0';
+--                end if;
+                
+                    -- start_bit <= '0';         -- Reset start_bit til'0'
+            else  -- Look for start bit
+                if rx = '0' then
+                    start_bit <= '1';
+                    
+                end if;
+                
+            end if;
+            
+            
+        end if;
+     
+    end process receive_process;
+
+
+--    -- Process to output received data
+--    output_process: process (receive_complete)
+--    begin
+--        if receive_complete = '1' then
+--            data_out <= shift_reg;  -- Output received signal on pin
+--            receive_complete <= '0';
+--        end if;
+--    end process output_process;
+
+end architecture Behavioral;
